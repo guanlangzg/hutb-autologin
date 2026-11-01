@@ -35,8 +35,11 @@ jobs:
       - name: 自检
         shell: pwsh
         run: |
-          .\hutb.exe --selftest
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # GUI 子系统的程序 PowerShell 不会等待，必须用 Start-Process -Wait 取退出码
+          $p = Start-Process -FilePath .\hutb.exe -ArgumentList '--selftest' -Wait -PassThru `
+               -RedirectStandardOutput selftest.txt
+          Get-Content selftest.txt -Encoding UTF8
+          if ($p.ExitCode -ne 0) { exit 1 }
 
       - uses: actions/upload-artifact@v4
         with:
