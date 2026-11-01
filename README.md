@@ -34,8 +34,8 @@ exe 没有数字签名，Windows 可能提示「已保护你的电脑」：
 ## Linux 使用
 
 ```bash
-tar -xzf hutb-linux-x64.tar.gz
-cd hutb-linux-x64
+mkdir hutb && tar -xzf hutb-linux-x64.tar.gz -C hutb
+cd hutb
 sudo ./install.sh
 ```
 
