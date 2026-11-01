@@ -1,0 +1,24 @@
+# 构建产物
+hutb.exe
+hutb
+*.o
+*.obj
+dist/
+out/
+pkg/
+
+# 本机账号与日志：绝对不要提交
+hutb.ini
+hutb.dat
+hutb.conf
+hutb.log
+hutb.log.old
+*.log
+
+# 编辑器
+.vscode/
+.idea/
+*~
+.DS_Store
+legacy/
+tests/stub/

@@ -1,0 +1,103 @@
+name: release
+
+# 打一个 v* 标签就自动编译两个平台并发布
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 编译
+        shell: pwsh
+        run: |
+          python -m pip install --quiet ziglang
+          python -m ziglang cc -target x86_64-windows-gnu -Oz -s -Wl,--subsystem,windows `
+            -ffunction-sections -fdata-sections -Wl,--gc-sections `
+            src/win/main_win.c src/win/conf_win.c src/win/icon_win.c src/core.c `
+            -o hutb.exe `
+            -lwinhttp -lcrypt32 -lshell32 -lcomctl32 -ladvapi32 -lgdi32 -luser32
+          $s = (Get-Item hutb.exe).Length
+          Write-Host "hutb.exe: $s bytes"
+
+      # 自检内置了加密基准向量，改了协议或密钥会立刻失败
+      - name: 自检
+        shell: pwsh
+        run: |
+          .\hutb.exe --selftest
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hutb-windows
+          path: hutb.exe
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装依赖
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: 编译
+        run: |
+          cc -O2 -Wall -Wextra -o hutb src/linux/main_linux.c src/core.c -lcurl
+          ls -l hutb
+
+      - name: 自检（含加密基准比对）
+        run: ./hutb --selftest
+
+      - name: 检查服务脚本语法
+        run: |
+          sh -n src/linux/install.sh
+          sh -n src/linux/uninstall.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hutb-linux
+          path: hutb
+
+  publish:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+
+      - name: 打包
+        run: |
+          mkdir -p out pkg
+          cp hutb-windows/hutb.exe          out/hutb-windows-x64.exe
+          cp hutb-linux/hutb                out/hutb-linux-x64
+          cp hutb-linux/hutb                pkg/hutb
+          cp src/linux/install.sh           pkg/
+          cp src/linux/uninstall.sh         pkg/
+          chmod +x pkg/hutb pkg/install.sh pkg/uninstall.sh
+          tar -czf out/hutb-linux-x64.tar.gz -C pkg .
+          ls -l out pkg
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          body: |
+            下载对应平台的程序：
+
+            - Windows：`hutb-windows-x64.exe`，双击运行，按提示填学号密码
+            - Linux：`hutb-linux-x64` + `install.sh`，`sudo ./install.sh` 安装
+
+            升级方式：下载新文件覆盖旧程序即可，账号配置会保留。
+
+            本程序仅用于登录本人校园网账号，请勿用于代认证或共享账号。
